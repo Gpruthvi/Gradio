@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, render_template
-from transformers import pipeline, BitsAndBytesConfig
+from transformers import pipeline
 from PIL import Image
 import torch
 import io
@@ -9,11 +9,8 @@ app = Flask(__name__)
 # Model ID for your fine-tuned LLaMA 3.2 Vision model
 model_id = "Pruthvi369i/llama_3.2_vision_MedVQA"
 
-# Enable 4-bit quantization to reduce VRAM usage
-bnb_config = BitsAndBytesConfig(load_in_4bit=True)
-
 # Load the model with optimized settings
-pipe = pipeline("visual-question-answering", model=model_id, quantization_config=bnb_config, device_map="auto")
+pipe = pipeline("image-to-text", model=model_id, device_map="auto")
 
 @app.route('/')
 def home():
@@ -29,9 +26,9 @@ def predict():
     image = Image.open(io.BytesIO(image_file.read()))
     
     # Get the answer from the model
-    response = pipe(image, question)
+    response = pipe(image, return_text=True)
     
-    return jsonify({'answer': response[0]['generated_text']})
+    return jsonify({'answer': response[0]})
 
 if __name__ == '__main__':
     app.run(debug=True)
