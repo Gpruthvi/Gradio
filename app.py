@@ -1,42 +1,37 @@
-import gradio as gr
-from transformers import pipeline
+from flask import Flask, request, jsonify, render_template
+from transformers import pipeline, BitsAndBytesConfig
+from PIL import Image
+import torch
+import io
 
-# Load fine-tuned model from Hugging Face Hub (without device argument)
+app = Flask(__name__)
+
+# Model ID for your fine-tuned LLaMA 3.2 Vision model
 model_id = "Pruthvi369i/llama_3.2_vision_MedVQA"
-pipe = pipeline("visual-question-answering", model=model_id)
 
-def answer_medical_question(image, question):
-    """Processes the medical image and question to return an answer."""
-    try:
-        result = pipe(image=image, question=question)
+# Enable 4-bit quantization to reduce VRAM usage
+bnb_config = BitsAndBytesConfig(load_in_4bit=True)
 
-        # Ensure result is a valid format
-        if isinstance(result, list) and len(result) > 0:
-            return result[0]["answer"]
-        elif isinstance(result, dict) and "answer" in result:
-            return result["answer"]
-        else:
-            return "⚠️ Error: No valid answer found."
+# Load the model with optimized settings
+pipe = pipeline("visual-question-answering", model=model_id, quantization_config=bnb_config, device_map="auto")
 
-    except Exception as e:
-        return f"❌ An error occurred: {str(e)}"
+@app.route('/')
+def home():
+    return render_template('index.html')
 
-# Create Gradio Interface
-demo = gr.Interface(
-    fn=answer_medical_question,
-    inputs=[
-        gr.Image(type="pil", label="📷 Upload Medical Image"),
-        gr.Textbox(label="💡 Ask a medical question about the image")
-    ],
-    outputs=gr.Textbox(label="🧠 AI Answer"),
-    title="🩺 Medical Visual Question Answering (MedVQA)",
-    description="Upload a medical image and ask a question. This AI model (LLaMA 3.2 Vision) will provide a response based on its training on medical VQA datasets.",
-    examples=[
-        ["example_img.jpg", "What abnormality is visible in this image?"],
-        ["example_img2.jpg", "Is this scan normal or abnormal?"]
-    ],
-    theme="default"
-)
+@app.route('/predict', methods=['POST'])
+def predict():
+    if 'image' not in request.files or 'question' not in request.form:
+        return jsonify({'error': 'Missing image or question'}), 400
 
-if __name__ == "__main__":
-    demo.launch()
+    image_file = request.files['image']
+    question = request.form['question']
+    image = Image.open(io.BytesIO(image_file.read()))
+    
+    # Get the answer from the model
+    response = pipe(image, question)
+    
+    return jsonify({'answer': response[0]['generated_text']})
+
+if __name__ == '__main__':
+    app.run(debug=True)
