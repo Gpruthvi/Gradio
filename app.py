@@ -1,43 +1,43 @@
 import gradio as gr
+from transformers import pipeline
 import torch
-from transformers import AutoProcessor, AutoModelForVision2Seq
 
-# Model ID from Hugging Face Hub
-MODEL_ID = "Pruthvi369i/llama_3.2_vision_MedVQA"
+# Load fine-tuned model from Hugging Face Hub
+model_id = "Pruthvi369i/llama_3.2_vision_MedVQA"
+pipe = pipeline("visual-question-answering", model=model_id, device="cpu")  # Set to CPU for Kaggle
 
-# Load model & processor
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
-try:
-    processor = AutoProcessor.from_pretrained(MODEL_ID)
-    model = AutoModelForVision2Seq.from_pretrained(
-        MODEL_ID, torch_dtype=torch.float16, device_map="auto"
-    )
-except Exception as e:
-    print(f"Error loading model: {e}")
-    exit()
-
-# Define inference function
 def answer_medical_question(image, question):
+    """Processes the medical image and question to return an answer."""
     try:
-        inputs = processor(images=image, text=question, return_tensors="pt").to(device)
-        outputs = model.generate(**inputs)
-        answer = processor.batch_decode(outputs, skip_special_tokens=True)[0]
-        return answer
-    except Exception as e:
-        return f"Error processing request: {e}"
+        result = pipe(image=image, question=question)
 
-# Create Gradio UI
+        # Ensure result is a valid format
+        if isinstance(result, list) and len(result) > 0:
+            return result[0]["answer"]
+        elif isinstance(result, dict) and "answer" in result:
+            return result["answer"]
+        else:
+            return "⚠️ Error: No valid answer found."
+
+    except Exception as e:
+        return f"❌ An error occurred: {str(e)}"
+
+# Create Gradio Interface
 demo = gr.Interface(
     fn=answer_medical_question,
     inputs=[
-        gr.Image(type="pil", label="Upload Radiograph"),
-        gr.Textbox(label="Ask a medical question about the image"),
+        gr.Image(type="pil", label="📷 Upload Medical Image"),
+        gr.Textbox(label="💡 Ask a medical question about the image")
     ],
-    outputs=gr.Textbox(label="Answer"),
-    title="Medical Visual Question Answering",
-    description="Upload a radiograph and ask a medical question. This AI will provide an answer based on the image.",
+    outputs=gr.Textbox(label="🧠 AI Answer"),
+    title="🩺 Medical Visual Question Answering (MedVQA)",
+    description="Upload a medical image and ask a question. This AI model (LLaMA 3.2 Vision) will provide a response based on its training on medical VQA datasets.",
+    examples=[
+        ["example_img.jpg", "What abnormality is visible in this image?"],
+        ["example_img2.jpg", "Is this scan normal or abnormal?"]
+    ],
+    theme="default"
 )
 
 if __name__ == "__main__":
-    demo.launch(share=True)
+    demo.launch()
