@@ -1,10 +1,9 @@
 import gradio as gr
 from transformers import pipeline
-import torch
 
-# Load fine-tuned model from Hugging Face Hub
+# Load fine-tuned model from Hugging Face Hub (without device argument)
 model_id = "Pruthvi369i/llama_3.2_vision_MedVQA"
-pipe = pipeline("visual-question-answering", model=model_id, device="cpu")  # Set to CPU for Kaggle
+pipe = pipeline("visual-question-answering", model=model_id)
 
 def answer_medical_question(image, question):
     """Processes the medical image and question to return an answer."""
